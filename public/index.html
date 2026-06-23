@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aimlock Control Panel</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; color: #111827; background: #f3f4f6; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: #ffffff; padding: 24px; border-radius: 16px; box-shadow: 0 18px 35px rgba(15, 23, 42, 0.08); margin-bottom: 20px; }
+        h1, h2 { margin-top: 0; }
+        label { display: block; margin: 14px 0 6px; font-weight: 600; }
+        input, select, button, textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 10px; padding: 12px 14px; font-size: 1rem; }
+        button { cursor: pointer; background: #2563eb; color: white; border: none; transition: background 0.2s ease; }
+        button:hover { background: #1d4ed8; }
+        .button-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+        .note { background: #e0f2fe; border-left: 4px solid #0284c7; padding: 16px; margin-top: 18px; }
+        .status { font-size: 0.95rem; color: #374151; margin-top: 10px; }
+        pre { background: #f9fafb; padding: 14px; border-radius: 12px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Aimlock Control Panel</h1>
+            <p>Use esta interface para conectar ao servidor WebSocket, enviar comandos e ativar funções remotas.</p>
+            <div class="note">
+                <strong>Importante:</strong> o servidor deve estar em execução em <code>http://localhost:8080</code>. A conexão WebSocket usa <code>ws://localhost:9998</code>.
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Status da Conexão WebSocket</h2>
+            <div class="button-row">
+                <button id="connectBtn">Conectar WebSocket</button>
+                <button id="disconnectBtn" disabled>Desconectar</button>
+                <button id="pingBtn" disabled>Enviar ping</button>
+                <a href="/logout"><button type="button">Logout</button></a>
+            </div>
+            <div class="status" id="wsStatus">Status: desconectado</div>
+            <div class="status" id="clientId">Client ID: —</div>
+        </div>
+
+        <div class="card">
+            <h2>Ativar Funções</h2>
+            <label for="neckShotFactor">Neck shot factor</label>
+            <input id="neckShotFactor" type="number" step="0.01" min="0" value="0.05" />
+            <div class="button-row">
+                <button id="enableCheatBtn">Ativar Cheat</button>
+                <button id="sendStatusBtn">Enviar status inicial</button>
+                <button id="sendSampleGameDataBtn">Enviar gameData de teste</button>
+            </div>
+            <div class="status">Os comandos serão enviados ao servidor e exibidos abaixo.</div>
+        </div>
+
+        <div class="card">
+            <h2>Proxy</h2>
+            <label for="proxyUrl">URL de destino</label>
+            <input id="proxyUrl" type="url" placeholder="https://example.com/api" />
+            <label for="proxyBody">JSON do body (opcional)</label>
+            <textarea id="proxyBody" rows="4" placeholder='{"key":"value"}'></textarea>
+            <div class="button-row">
+                <button id="proxyGetBtn">Enviar GET</button>
+                <button id="proxyPostBtn">Enviar POST</button>
+            </div>
+            <div class="status">Use o proxy para encaminhar requisições via servidor.</div>
+        </div>
+
+        <div class="card">
+            <h2>Histórico de Mensagens</h2>
+            <textarea id="logOutput" rows="12" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const pingBtn = document.getElementById('pingBtn');
+        const enableCheatBtn = document.getElementById('enableCheatBtn');
+        const sendStatusBtn = document.getElementById('sendStatusBtn');
+        const sendSampleGameDataBtn = document.getElementById('sendSampleGameDataBtn');
+        const proxyUrlInput = document.getElementById('proxyUrl');
+        const proxyBodyInput = document.getElementById('proxyBody');
+        const proxyGetBtn = document.getElementById('proxyGetBtn');
+        const proxyPostBtn = document.getElementById('proxyPostBtn');
+        const wsStatus = document.getElementById('wsStatus');
+        const clientIdLabel = document.getElementById('clientId');
+        const logOutput = document.getElementById('logOutput');
+        const neckShotFactorInput = document.getElementById('neckShotFactor');
+
+        let websocket = null;
+
+        function log(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.value += `[${timestamp}] ${message}\n`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function setStatus(text, connected = false) {
+            wsStatus.textContent = `Status: ${text}`;
+            connectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+            pingBtn.disabled = !connected;
+        }
+
+        function setClientId(id) {
+            clientIdLabel.textContent = `Client ID: ${id}`;
+        }
+
+        connectBtn.addEventListener('click', () => {
+            websocket = new WebSocket('ws://localhost:9998');
+
+            websocket.addEventListener('open', () => {
+                setStatus('conectado', true);
+                log('WebSocket conectado.');
+            });
+
+            websocket.addEventListener('message', (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'clientId') {
+                        setClientId(data.id);
+                    }
+                    log(`Recebido: ${event.data}`);
+                } catch (error) {
+                    log(`Recebido (texto): ${event.data}`);
+                }
+            });
+
+            websocket.addEventListener('close', () => {
+                setStatus('desconectado', false);
+                setClientId('—');
+                log('WebSocket desconectado.');
+            });
+
+            websocket.addEventListener('error', (error) => {
+                log('Erro no WebSocket: ' + error.message);
+            });
+        });
+
+        disconnectBtn.addEventListener('click', () => {
+            if (websocket) {
+                websocket.close();
+            }
+        });
+
+        pingBtn.addEventListener('click', () => {
+            if (websocket?.readyState === WebSocket.OPEN) {
+                const message = { type: 'ping' };
+                websocket.send(JSON.stringify(message));
+                log('Enviado ping.');
+            }
+        });
+
+        enableCheatBtn.addEventListener('click', async () => {
+            const neckShotFactor = parseFloat(neckShotFactorInput.value) || 0.05;
+            const body = { command: 'broadcastEnableCheat', payload: { settings: { neckShotFactor } } };
+            try {
+                const response = await fetch('/api/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const data = await response.json();
+                log(`HTTP /api/command enviado: ${JSON.stringify(body)} | resposta: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log('Erro enviando comando via HTTP: ' + error.message);
+            }
+        });
+
+        sendStatusBtn.addEventListener('click', () => {
+            if (websocket?.readyState === WebSocket.OPEN) {
+                const message = { type: 'statusUpdate', payload: { status: 'initialized' } };
+                websocket.send(JSON.stringify(message));
+                log('Enviado statusUpdate.');
+            }
+        });
+
+        sendSampleGameDataBtn.addEventListener('click', () => {
+            if (websocket?.readyState === WebSocket.OPEN) {
+                const sample = {
+                    type: 'gameData',
+                    payload: {
+                        playerId: clientIdLabel.textContent.replace('Client ID: ', ''),
+                        playerPos: { x: 0, y: 0, z: 0 },
+                        currentAim: { pitch: 0, yaw: 0 },
+                        enemies: [ { id: 1, position: { x: 1, y: 2, z: 3 }, hitbox: { head: { x: 1, y: 2, z: 3 } } } ],
+                        lastHitInfo: null,
+                        settings: { neckShotFactor: parseFloat(neckShotFactorInput.value) || 0.05 }
+                    }
+                };
+                websocket.send(JSON.stringify(sample));
+                log('Enviado sample gameData.');
+            }
+        });
+
+        proxyGetBtn.addEventListener('click', async () => {
+            const targetUrl = proxyUrlInput.value.trim();
+            if (!targetUrl) {
+                log('Informe a URL de destino para o proxy.');
+                return;
+            }
+            try {
+                const response = await fetch('/proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetUrl, method: 'GET' })
+                });
+                const data = await response.json();
+                log(`Proxy GET enviado para ${targetUrl} | resultado: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log('Erro no proxy GET: ' + error.message);
+            }
+        });
+
+        proxyPostBtn.addEventListener('click', async () => {
+            const targetUrl = proxyUrlInput.value.trim();
+            if (!targetUrl) {
+                log('Informe a URL de destino para o proxy.');
+                return;
+            }
+            let parsedBody = null;
+            const rawBody = proxyBodyInput.value.trim();
+            if (rawBody) {
+                try {
+                    parsedBody = JSON.parse(rawBody);
+                } catch (error) {
+                    log('JSON inválido no corpo do proxy.');
+                    return;
+                }
+            }
+            try {
+                const response = await fetch('/proxy', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ targetUrl, method: 'POST', body: parsedBody })
+                });
+                const data = await response.json();
+                log(`Proxy POST enviado para ${targetUrl} | resultado: ${JSON.stringify(data)}`);
+            } catch (error) {
+                log('Erro no proxy POST: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

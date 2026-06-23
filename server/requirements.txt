@@ -1,0 +1,2 @@
+# Dependências mínimas para o servidor exemplo
+# Nenhuma dependência externa é necessária para esta versão base.

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aimlock Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #eff6ff; color: #111827; }
+        .login-box { width: 100%; max-width: 420px; background: #ffffff; border-radius: 16px; padding: 32px; box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12); }
+        h1 { margin-top: 0; }
+        label { display: block; margin: 18px 0 8px; font-weight: 600; }
+        input { width: 100%; padding: 14px 16px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 1rem; }
+        button { width: 100%; margin-top: 20px; padding: 14px 18px; border: none; border-radius: 10px; background: #2563eb; color: #ffffff; font-size: 1rem; cursor: pointer; }
+        button:hover { background: #1d4ed8; }
+        .message { margin-top: 18px; font-size: 0.95rem; color: #dc2626; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <h1>Login Aimlock</h1>
+        <p>Digite a senha para acessar o painel.</p>
+        <label for="password">Senha</label>
+        <input id="password" type="password" autocomplete="current-password" />
+        <button id="loginBtn">Entrar</button>
+        <div class="message" id="message"></div>
+    </div>
+    <script>
+        const loginBtn = document.getElementById('loginBtn');
+        const passwordInput = document.getElementById('password');
+        const message = document.getElementById('message');
+
+        loginBtn.addEventListener('click', async () => {
+            const password = passwordInput.value.trim();
+            if (!password) {
+                message.textContent = 'Digite a senha.';
+                return;
+            }
+
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password })
+            });
+
+            if (response.ok) {
+                window.location.href = '/dashboard';
+            } else {
+                const data = await response.json();
+                message.textContent = data.message || 'Senha incorreta.';
+            }
+        });
+
+        passwordInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                loginBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
