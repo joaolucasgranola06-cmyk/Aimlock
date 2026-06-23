@@ -2,3 +2,10 @@ __pycache__/
 *.pyc
 *.log
 .env
+
+# Node / frontend
+node_modules/
+npm-debug.log
+.DS_Store
+coverage/
+dist/
